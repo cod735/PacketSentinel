@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PacketSentinel — SOC Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap');
+
+:root {
+ --bg-base: #040810;
+ --bg-panel: #070d1a;
+ --bg-card: #0a1628;
+ --bg-hover: #0d1e35;
+ --border: rgba(0,200,255,0.08);
+ --border-bright: rgba(0,200,255,0.25);
+ --cyan: #00c8ff;
+ --cyan-dim: rgba(0,200,255,0.15);
+ --green: #00ff9d;
+ --green-dim: rgba(0,255,157,0.12);
+ --red: #ff3860;
+ --red-dim: rgba(255,56,96,0.12);
+ --yellow: #ffd600;
+ --yellow-dim: rgba(255,214,0,0.12);
+ --purple: #b44eff;
+ --purple-dim: rgba(180,78,255,0.12);
+ --text-primary: #d0e8ff;
+ --text-secondary:#5a7fa0;
+ --text-dim: #2a4060;
+ --sidebar-w: 220px;
+ --topbar-h: 56px;
+ --font-mono: 'Share Tech Mono', monospace;
+ --font-ui: 'Exo 2', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+
+body {
+ background: var(--bg-base);
+ color: var(--text-primary);
+ font-family: var(--font-ui);
+ display: flex;
+ flex-direction: column;
+}
+
+/* ── Scanline overlay ── */
+body::before {
+ content:'';
+ position:fixed; inset:0;
+ background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+ pointer-events:none; z-index:9999;
+}
+
+/* ══════════════════════════════════════
+ TOP BAR
+══════════════════════════════════════ */
+.topbar {
+ height: var(--topbar-h);
+ background: var(--bg-panel);
+ border-bottom: 1px solid var(--border-bright);
+ display: flex;
+ align-items: center;
+ padding: 0 20px;
+ gap: 16px;
+ flex-shrink: 0;
+ position: relative;
+ z-index: 100;
+}
+
+.topbar::after {
+ content:'';
+ position:absolute; bottom:-1px; left:0; right:0;
+ height:1px;
+ background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+ opacity: 0.5;
+}
+
+.logo {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ text-decoration: none;
+}
+
+.logo-shield {
+ width: 32px; height: 32px;
+ background: linear-gradient(135deg, var(--cyan), #0066aa);
+ clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+ display: flex; align-items: center; justify-content: center;
+ font-size: 14px;
+ flex-shrink: 0;
+}
+
+.logo-name {
+ font-family: var(--font-mono);
+ font-size: 15px;
+ color: var(--cyan);
+ letter-spacing: 2px;
+ white-space: nowrap;
+}
+
+.topbar-sep { flex:1; }
+
+.iface-badge {
+ font-family: var(--font-mono);
+ font-size: 11px;
+ color: var(--text-secondary);
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ padding: 4px 12px;
+ border-radius: 4px;
+}
+
+.status-pill {
+ font-family: var(--font-mono);
+ font-size: 11px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ padding: 5px 14px;
+ border-radius: 4px;
+ display: flex; align-items: center; gap: 6px;
+}
+.status-pill.learning { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,214,0,0.3); }
+.status-pill.active { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,157,0.3); }
+.status-pill.error { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,56,96,0.3); }
+
+.status-dot {
+ width:7px; height:7px; border-radius:50%;
+ animation: blink 1.5s ease-in-out infinite;
+}
+.learning .status-dot { background: var(--yellow); }
+.active .status-dot { background: var(--green); }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.topbar-btn {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ color: var(--text-secondary);
+ font-family: var(--font-ui);
+ font-size: 12px;
+ padding: 5px 14px;
+ border-radius: 4px;
+ cursor: pointer;
+ transition: all 0.2s;
+ white-space: nowrap;
+}
+.topbar-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* ══════════════════════════════════════
+ LAYOUT
+══════════════════════════════════════ */
+.layout {
+ display: flex;
+ flex: 1;
+ overflow: hidden;
+}
+
+/* ══════════════════════════════════════
+ SIDEBAR
+══════════════════════════════════════ */
+.sidebar {
+ width: var(--sidebar-w);
+ background: var(--bg-panel);
+ border-right: 1px solid var(--border);
+ display: flex;
+ flex-direction: column;
+ flex-shrink: 0;
+ overflow-y: auto;
+ padding: 16px 0;
+}
+
+.nav-section-label {
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ color: var(--text-dim);
+ text-transform: uppercase;
+ padding: 12px 20px 6px;
+}
+
+.nav-item {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ padding: 10px 20px;
+ cursor: pointer;
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--text-secondary);
+ border-left: 3px solid transparent;
+ transition: all 0.15s;
+ user-select: none;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.nav-item.active {
+ background: var(--cyan-dim);
+ color: var(--cyan);
+ border-left-color: var(--cyan);
+}
+.nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+.sidebar-footer {
+ margin-top: auto;
+ padding: 16px 20px;
+ border-top: 1px solid var(--border);
+ font-size: 10px;
+ color: var(--text-dim);
+ font-family: var(--font-mono);
+ line-height: 1.6;
+}
+
+/* ══════════════════════════════════════
+ MAIN CONTENT
+══════════════════════════════════════ */
+.main {
+ flex: 1;
+ overflow-y: auto;
+ padding: 24px;
+ scrollbar-width: thin;
+ scrollbar-color: var(--border-bright) transparent;
+}
+
+.page { display: none; }
+.page.active { display: block; }
+
+.page-title {
+ font-size: 11px;
+ font-weight: 700;
+ letter-spacing: 3px;
+ text-transform: uppercase;
+ color: var(--text-secondary);
+ margin-bottom: 20px;
+ display: flex;
+ align-items: center;
+ gap: 8px;
+}
+.page-title::after {
+ content:'';
+ flex:1; height:1px;
+ background: linear-gradient(90deg, var(--border-bright), transparent);
+}
+
+/* ══════════════════════════════════════
+ CARDS
+══════════════════════════════════════ */
+.card {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ border-radius: 8px;
+ padding: 20px;
+ position: relative;
+ overflow: hidden;
+ transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--border-bright); }
+
+.card-label {
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ text-transform: uppercase;
+ color: var(--text-secondary);
+ margin-bottom: 8px;
+}
+
+.card-value {
+ font-family: var(--font-mono);
+ font-size: 30px;
+ font-weight: 400;
+ line-height: 1;
+ margin-bottom: 4px;
+}
+
+.card-sub {
+ font-size: 11px;
+ color: var(--text-dim);
+}
+
+/* Accent lines */
+.card.cyan { border-top: 2px solid var(--cyan); }
+.card.green { border-top: 2px solid var(--green); }
+.card.red { border-top: 2px solid var(--red); }
+.card.yellow{ border-top: 2px solid var(--yellow); }
+.card.purple{ border-top: 2px solid var(--purple); }
+
+/* ══════════════════════════════════════
+ OVERVIEW PAGE
+══════════════════════════════════════ */
+.metrics-grid {
+ display: grid;
+ grid-template-columns: repeat(4, 1fr);
+ gap: 14px;
+ margin-bottom: 20px;
+}
+
+.chart-card {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ border-radius: 8px;
+ padding: 20px;
+ margin-bottom: 20px;
+}
+
+.chart-header {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ margin-bottom: 16px;
+}
+
+.chart-title {
+ font-size: 11px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ text-transform: uppercase;
+ color: var(--cyan);
+}
+
+.live-badge {
+ font-family: var(--font-mono);
+ font-size: 10px;
+ color: var(--green);
+ display: flex; align-items: center; gap: 5px;
+}
+.live-badge::before {
+ content:'';
+ width:6px; height:6px;
+ background: var(--green);
+ border-radius: 50%;
+ animation: blink 1s infinite;
+}
+
+.baseline-notice {
+ background: rgba(255,214,0,0.05);
+ border: 1px solid rgba(255,214,0,0.2);
+ border-radius: 6px;
+ padding: 10px 16px;
+ font-size: 12px;
+ color: var(--yellow);
+ margin-bottom: 20px;
+ display: flex; align-items: center; gap: 8px;
+ font-family: var(--font-mono);
+}
+
+/* ══════════════════════════════════════
+ ALERTS TABLE
+══════════════════════════════════════ */
+.filter-bar {
+ display: flex;
+ gap: 10px;
+ margin-bottom: 16px;
+ flex-wrap: wrap;
+}
+
+.search-input {
+ flex: 1;
+ min-width: 200px;
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ color: var(--text-primary);
+ font-family: var(--font-mono);
+ font-size: 12px;
+ padding: 8px 14px;
+ border-radius: 4px;
+ outline: none;
+ transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--cyan); }
+.search-input::placeholder { color: var(--text-dim); }
+
+.filter-select {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ color: var(--text-primary);
+ font-family: var(--font-mono);
+ font-size: 12px;
+ padding: 8px 14px;
+ border-radius: 4px;
+ outline: none;
+ cursor: pointer;
+}
+
+.btn {
+ padding: 8px 16px;
+ border-radius: 4px;
+ font-family: var(--font-ui);
+ font-size: 12px;
+ font-weight: 600;
+ cursor: pointer;
+ border: none;
+ transition: all 0.2s;
+ text-decoration: none;
+ display: inline-flex; align-items: center; gap: 6px;
+ white-space: nowrap;
+}
+.btn-cyan { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(0,200,255,0.3); }
+.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,56,96,0.3); }
+.btn-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,157,0.3); }
+.btn:hover { filter: brightness(1.3); transform: translateY(-1px); }
+
+.alerts-table-wrap { overflow-x: auto; }
+
+table {
+ width: 100%;
+ border-collapse: collapse;
+ font-size: 12px;
+}
+
+thead th {
+ text-align: left;
+ padding: 10px 12px;
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ text-transform: uppercase;
+ color: var(--text-dim);
+ border-bottom: 1px solid var(--border);
+ white-space: nowrap;
+}
+
+tbody tr {
+ border-bottom: 1px solid rgba(0,200,255,0.03);
+ transition: background 0.15s;
+ cursor: pointer;
+}
+tbody tr:hover { background: var(--bg-hover); }
+
+tbody td {
+ padding: 10px 12px;
+ vertical-align: middle;
+ font-family: var(--font-mono);
+ font-size: 12px;
+ color: var(--text-secondary);
+}
+
+.badge {
+ padding: 3px 8px;
+ border-radius: 3px;
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 1px;
+ white-space: nowrap;
+}
+.badge-LOW { background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(0,200,255,0.2); }
+.badge-MEDIUM { background:var(--yellow-dim); color:var(--yellow); border:1px solid rgba(255,214,0,0.2); }
+.badge-HIGH { background:var(--red-dim); color:var(--red); border:1px solid rgba(255,56,96,0.2); }
+.badge-CRITICAL { background:var(--purple-dim); color:var(--purple); border:1px solid rgba(180,78,255,0.2); animation: glow-purple 2s infinite; }
+
+@keyframes glow-purple {
+ 0%,100%{ box-shadow: 0 0 0 rgba(180,78,255,0); }
+ 50% { box-shadow: 0 0 8px rgba(180,78,255,0.4); }
+}
+
+.empty-state {
+ text-align: center;
+ padding: 60px 20px;
+ color: var(--text-dim);
+}
+.empty-state .ei { font-size: 40px; margin-bottom: 12px; }
+.empty-state p { font-family: var(--font-mono); font-size: 13px; }
+
+/* ══════════════════════════════════════
+ SLIDE-IN DETAIL PANEL
+══════════════════════════════════════ */
+.detail-overlay {
+ position: fixed; inset: 0;
+ background: rgba(0,0,0,0.6);
+ z-index: 500;
+ display: none;
+ backdrop-filter: blur(2px);
+}
+.detail-overlay.open { display: block; }
+
+.detail-panel {
+ position: fixed;
+ top: 0; right: -420px;
+ width: 420px; height: 100%;
+ background: var(--bg-panel);
+ border-left: 1px solid var(--border-bright);
+ z-index: 501;
+ transition: right 0.3s ease;
+ overflow-y: auto;
+ padding: 24px;
+}
+.detail-panel.open { right: 0; }
+
+.detail-close {
+ position: absolute;
+ top: 16px; right: 16px;
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ color: var(--text-secondary);
+ width: 28px; height: 28px;
+ border-radius: 4px;
+ cursor: pointer;
+ font-size: 16px;
+ display: flex; align-items: center; justify-content: center;
+}
+.detail-close:hover { border-color: var(--red); color: var(--red); }
+
+.detail-title {
+ font-family: var(--font-mono);
+ font-size: 14px;
+ color: var(--cyan);
+ margin-bottom: 20px;
+ padding-right: 40px;
+}
+
+.detail-row {
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+ margin-bottom: 16px;
+ padding-bottom: 16px;
+ border-bottom: 1px solid var(--border);
+}
+.detail-row:last-of-type { border-bottom: none; }
+
+.detail-key {
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ text-transform: uppercase;
+ color: var(--text-dim);
+}
+
+.detail-val {
+ font-family: var(--font-mono);
+ font-size: 13px;
+ color: var(--text-primary);
+ word-break: break-all;
+}
+
+.detail-actions {
+ display: flex;
+ gap: 10px;
+ margin-top: 20px;
+}
+
+/* ══════════════════════════════════════
+ THREAT INTEL PAGE
+══════════════════════════════════════ */
+.intel-grid {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 16px;
+}
+
+.intel-list { list-style: none; }
+.intel-list li {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ padding: 10px 0;
+ border-bottom: 1px solid var(--border);
+ font-size: 13px;
+ font-family: var(--font-mono);
+}
+.intel-list li:last-child { border-bottom: none; }
+
+.intel-list .country-name { color: var(--text-primary); display:flex; align-items:center; gap:8px; }
+.intel-list .count-badge {
+ background: var(--red-dim);
+ color: var(--red);
+ border: 1px solid rgba(255,56,96,0.2);
+ padding: 2px 8px;
+ border-radius: 3px;
+ font-size: 11px;
+}
+
+.bar-row { margin-bottom: 12px; }
+.bar-label {
+ display: flex;
+ justify-content: space-between;
+ font-size: 11px;
+ font-family: var(--font-mono);
+ color: var(--text-secondary);
+ margin-bottom: 5px;
+}
+.bar-track {
+ background: var(--bg-base);
+ border-radius: 2px;
+ height: 6px;
+ overflow: hidden;
+}
+.bar-fill {
+ height: 100%;
+ border-radius: 2px;
+ background: linear-gradient(90deg, var(--cyan), var(--green));
+ transition: width 0.8s ease;
+}
+
+/* ══════════════════════════════════════
+ ANALYTICS PAGE
+══════════════════════════════════════ */
+.analytics-grid {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 16px;
+ margin-bottom: 16px;
+}
+
+/* ══════════════════════════════════════
+ SETTINGS PAGE
+══════════════════════════════════════ */
+.settings-section {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ border-radius: 8px;
+ padding: 20px;
+ margin-bottom: 16px;
+}
+.settings-title {
+ font-size: 11px;
+ font-weight: 700;
+ letter-spacing: 2px;
+ text-transform: uppercase;
+ color: var(--cyan);
+ margin-bottom: 16px;
+}
+.setting-row {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ padding: 12px 0;
+ border-bottom: 1px solid var(--border);
+ font-size: 13px;
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { color: var(--text-primary); }
+.setting-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.toggle {
+ position: relative;
+ width: 40px; height: 22px;
+ flex-shrink: 0;
+}
+.toggle input { display: none; }
+.toggle-track {
+ position: absolute; inset: 0;
+ background: var(--bg-base);
+ border: 1px solid var(--border);
+ border-radius: 11px;
+ cursor: pointer;
+ transition: all 0.2s;
+}
+.toggle input:checked + .toggle-track { background: var(--cyan-dim); border-color: var(--cyan); }
+.toggle-track::after {
+ content:'';
+ position: absolute;
+ top: 3px; left: 3px;
+ width: 14px; height: 14px;
+ background: var(--text-dim);
+ border-radius: 50%;
+ transition: all 0.2s;
+}
+.toggle input:checked + .toggle-track::after { left: 21px; background: var(--cyan); }
+
+/* ══════════════════════════════════════
+ REPORTS PAGE
+══════════════════════════════════════ */
+.report-card {
+ background: var(--bg-card);
+ border: 1px solid var(--border);
+ border-radius: 8px;
+ padding: 24px;
+ margin-bottom: 14px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ transition: border-color 0.2s;
+}
+.report-card:hover { border-color: var(--border-bright); }
+.report-info h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.report-info p { font-size: 12px; color: var(--text-dim); font-family: var(--font-mono); }
+
+/* ══════════════════════════════════════
+ LIVE TRAFFIC PAGE
+══════════════════════════════════════ */
+.live-feed {
+ background: var(--bg-base);
+ border: 1px solid var(--border);
+ border-radius: 6px;
+ height: 200px;
+ overflow-y: auto;
+ padding: 10px;
+ font-family: var(--font-mono);
+ font-size: 11px;
+ scrollbar-width: thin;
+ scrollbar-color: var(--border) transparent;
+}
+.feed-item {
+ padding: 4px 6px;
+ border-radius: 3px;
+ margin-bottom: 3px;
+ display: flex; gap: 8px; align-items: center;
+ animation: fadein 0.3s ease;
+}
+@keyframes fadein { from{opacity:0; transform:translateX(-8px)} to{opacity:1; transform:none} }
+.feed-item.normal { color: var(--text-secondary); }
+.feed-item.alert { color: var(--red); background: var(--red-dim); }
+.feed-ts { color: var(--text-dim); flex-shrink:0; }
+
+/* ══════════════════════════════════════
+ SCROLLBAR
+══════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+</style>
+</head>
+<body>
+
+<!-- ══ TOP BAR ══ -->
+<div class="topbar">
+ <div class="logo">
+ <div class="logo-shield"></div>
+ <span class="logo-name">PACKETSENTINEL</span>
+ </div>
+ <span class="topbar-sep"></span>
+ <span class="iface-badge" id="iface-badge"> ens33</span>
+ <span class="status-pill learning" id="status-pill">
+ <span class="status-dot"></span>
+ <span id="status-text">LEARNING</span>
+ </span>
+ <button class="topbar-btn" onclick="navigateTo('settings')">Settings</button>
+</div>
+
+<!-- ══ LAYOUT ══ -->
+<div class="layout">
+
+ <!-- SIDEBAR -->
+ <nav class="sidebar">
+ <div class="nav-section-label">Monitor</div>
+ <div class="nav-item active" onclick="navigateTo('overview')" id="nav-overview">
+ <span class="nav-icon"></span>Overview
+ </div>
+ <div class="nav-item" onclick="navigateTo('live')" id="nav-live">
+ <span class="nav-icon"></span>Live Traffic
+ </div>
+ <div class="nav-item" onclick="navigateTo('alerts')" id="nav-alerts">
+ <span class="nav-icon"></span>Alerts
+ <span id="alert-count-badge" style="margin-left:auto; background:var(--red-dim); color:var(--red); border:1px solid rgba(255,56,96,0.3); font-size:10px; padding:1px 7px; border-radius:10px; font-family:var(--font-mono); display:none;"></span>
+ </div>
+
+ <div class="nav-section-label">Intelligence</div>
+ <div class="nav-item" onclick="navigateTo('threat')" id="nav-threat">
+ <span class="nav-icon"></span>Threat Intel
+ </div>
+ <div class="nav-item" onclick="navigateTo('analytics')" id="nav-analytics">
+ <span class="nav-icon"></span>Analytics
+ </div>
+
+ <div class="nav-section-label">Data</div>
+ <div class="nav-item" onclick="navigateTo('reports')" id="nav-reports">
+ <span class="nav-icon"></span>Reports
+ </div>
+ <div class="nav-item" onclick="navigateTo('settings')" id="nav-settings">
+ <span class="nav-icon"></span>Settings
+ </div>
+
+ <div class="sidebar-footer">
+ PacketSentinel v1.0<br>
+ By Abbas Khan<br>
+ github.com/cod735
+ </div>
+ </nav>
+
+ <!-- MAIN -->
+ <main class="main">
+
+ <!-- ══ OVERVIEW PAGE ══ -->
+ <div class="page active" id="page-overview">
+ <div class="page-title">Overview</div>
+
+ <div class="baseline-notice" id="baseline-notice">
+ <span id="baseline-msg-text">Baseline learning in progress...</span>
+ </div>
+
+ <div class="metrics-grid">
+ <div class="card cyan">
+ <div class="card-label">Total Packets</div>
+ <div class="card-value" id="ov-packets">0</div>
+ <div class="card-sub">captured since start</div>
+ </div>
+ <div class="card red">
+ <div class="card-label">TotalAlerts</div>
+ <div class="card-value" id="ov-alerts">0</div>
+ <div class="card-sub">anomalies detected</div>
+ </div>
+ <div class="card green">
+ <div class="card-label">Packets / sec</div>
+ <div class="card-value" id="ov-pps">0</div>
+ <div class="card-sub">current traffic rate</div>
+ </div>
+ <div class="card yellow">
+ <div class="card-label">Uptime</div>
+ <div class="card-value" id="ov-uptime" style="font-size:20px;">00:00:00</div>
+ <div class="card-sub">running since start</div>
+ </div>
+ </div>
+
+ <!-- Threat level + top IP row -->
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;">
+ <div class="card purple">
+ <div class="card-label">Threat Level</div>
+ <div class="card-value" id="ov-threat" style="font-size:22px;">NONE</div>
+ <div class="card-sub">last 10 minutes</div>
+ </div>
+ <div class="card cyan">
+ <div class="card-label">Top Attacker</div>
+ <div class="card-value" id="ov-topip" style="font-size:18px;">—</div>
+ <div class="card-sub" id="ov-topip-sub">no alerts yet</div>
+ </div>
+ </div>
+
+ <!-- Live chart -->
+ <div class="chart-card">
+ <div class="chart-header">
+ <span class="chart-title">Live Traffic</span>
+ <span class="live-badge">LIVE</span>
+ </div>
+ <canvas id="overviewChart" height="70"></canvas>
+ </div>
+
+ <!-- Recent alerts preview -->
+ <div class="chart-card">
+ <div class="chart-header">
+ <span class="chart-title"> RecentAlerts</span>
+ <span class="btn btn-cyan" onclick="navigateTo('alerts')" style="cursor:pointer; font-size:11px; padding:4px 12px;">View All →</span>
+ </div>
+ <div class="alerts-table-wrap">
+ <table>
+ <thead>
+ <tr>
+ <th>Severity</th><th>Time</th><th>Rule</th><th>Source IP</th><th>Country</th>
+ </tr>
+ </thead>
+ <tbody id="overview-alerts-tbody">
+ <tr><td colspan="5"><div class="empty-state"><div class="ei"></div><p>No alerts yet</p></div></td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ══ LIVE TRAFFIC PAGE ══ -->
+ <div class="page" id="page-live">
+ <div class="page-title">Live Traffic Monitor</div>
+ <div class="chart-card">
+ <div class="chart-header">
+ <span class="chart-title">Real-Time Packets/sec</span>
+ <span class="live-badge">LIVE</span>
+ </div>
+ <canvas id="liveChart" height="100"></canvas>
+ </div>
+ <div class="chart-card">
+ <div class="chart-header">
+ <span class="chart-title"> Live Packet Feed</span>
+ <span style="font-size:11px; color:var(--text-dim); font-family:var(--font-mono);" id="feed-count">0 events</span>
+ </div>
+ <div class="live-feed" id="live-feed">
+ <div class="feed-item normal"><span class="feed-ts">--:--:--</span> Waiting for packets...</div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ══ ALERTS PAGE ══ -->
+ <div class="page" id="page-alerts">
+ <div class="page-title">Alerts</div>
+ <div class="filter-bar">
+ <input class="search-input" id="alert-search" placeholder=" Search IP, rule, country..." oninput="filterAlerts()">
+ <select class="filter-select" id="severity-filter" onchange="filterAlerts()">
+ <option value="ALL">All Severities</option>
+ <option value="CRITICAL">CRITICAL</option>
+ <option value="HIGH">HIGH</option>
+ <option value="MEDIUM">MEDIUM</option>
+ <option value="LOW">LOW</option>
+ </select>
+ <a href="http://localhost:5001/api/export/csv" class="btn btn-cyan">Export CSV</a>
+ <a href="http://localhost:5001/api/export/json" class="btn btn-green">Export JSON</a>
+ </div>
+ <div class="card" style="padding:0; overflow:hidden;">
+ <div class="alerts-table-wrap">
+ <table>
+ <thead>
+ <tr>
+ <th>Severity</th><th>Timestamp</th><th>Rule</th>
+ <th>Source IP</th><th>Country</th><th>Detail</th>
+ </tr>
+ </thead>
+ <tbody id="alerts-tbody">
+ <tr><td colspan="6"><div class="empty-state"><div class="ei"></div><p>No alerts yet — baseline learning in progress</p></div></td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ══ THREAT INTEL PAGE ══ -->
+ <div class="page" id="page-threat">
+ <div class="page-title">Threat Intelligence</div>
+ <div class="intel-grid">
+ <div class="chart-card" style="margin-bottom:0;">
+ <div class="chart-header">
+ <span class="chart-title"> Top Countries</span>
+ </div>
+ <div id="top-countries-list">
+ <div class="empty-state" style="padding:30px;"><p>No data yet</p></div>
+ </div>
+ </div>
+ <div class="chart-card" style="margin-bottom:0;">
+ <div class="chart-header">
+ <span class="chart-title"> Top Attacker IPs</span>
+ </div>
+ <div id="top-ips-list">
+ <div class="empty-state" style="padding:30px;"><p>No data yet</p></div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ══ ANALYTICS PAGE ══ -->
+ <div class="page" id="page-analytics">
+ <div class="page-title">Analytics</div>
+ <div class="chart-card">
+ <div class="chart-header">
+ <span class="chart-title">Alerts Over Time (Last 24h)</span>
+ </div>
+ <canvas id="alertsTimeChart" height="80"></canvas>
+ </div>
+ <div class="analytics-grid">
+ <div class="chart-card" style="margin-bottom:0;">
+ <div class="chart-header">
+ <span class="chart-title"> Detection Types</span>
+ </div>
+ <canvas id="detectionPieChart" height="180"></canvas>
+ </div>
+ <div class="chart-card" style="margin-bottom:0;">
+ <div class="chart-header">
+ <span class="chart-title"> Severity Breakdown</span>
+ </div>
+ <canvas id="severityPieChart" height="180"></canvas>
+ </div>
+ </div>
+ </div>
+
+ <!-- ══ REPORTS PAGE ══ -->
+ <div class="page" id="page-reports">
+ <div class="page-title">Reports & Exports</div>
+ <div class="report-card">
+ <div class="report-info">
+ <h3> CSV Export</h3>
+ <p>All alerts as comma-separated file — opens in Excel/LibreOffice</p>
+ </div>
+ <a href="http://localhost:5001/api/export/csv" class="btn btn-cyan">Download CSV</a>
+ </div>
+ <div class="report-card">
+ <div class="report-info">
+ <h3> JSON Export</h3>
+ <p>All alerts as structured JSON — for scripting and integration</p>
+ </div>
+ <a href="http://localhost:5001/api/export/json" class="btn btn-green">Download JSON</a>
+ </div>
+ <div class="report-card" style="opacity:0.4;">
+ <div class="report-info">
+ <h3> PDF Report <span style="font-size:10px; color:var(--text-dim);">— coming soon</span></h3>
+ <p>Formatted PDF report with charts — planned for future release</p>
+ </div>
+ <button class="btn btn-cyan" disabled style="cursor:not-allowed; opacity:0.5;">Download PDF</button>
+ </div>
+ </div>
+
+ <!-- ══ SETTINGS PAGE ══ -->
+ <div class="page" id="page-settings">
+ <div class="page-title">Settings</div>
+
+ <div class="settings-section">
+ <div class="settings-title">Network</div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Network Interface</div>
+ <div class="setting-desc">Auto-detected from system — works on any Linux machine</div>
+ </div>
+ <span class="iface-badge" id="settings-iface">ens33</span>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Baseline Duration</div>
+ <div class="setting-desc">Traffic learning window before detection activates</div>
+ </div>
+ <span style="font-family:var(--font-mono); font-size:12px; color:var(--cyan);">300s</span>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Spike Multiplier</div>
+ <div class="setting-desc">Traffic must exceed baseline × this value to trigger alert</div>
+ </div>
+ <span style="font-family:var(--font-mono); font-size:12px; color:var(--cyan);">3.0×</span>
+ </div>
+ </div>
+
+ <div class="settings-section">
+ <div class="settings-title">Detection Rules</div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Port Scan Detection</div>
+ <div class="setting-desc">15 unique ports in 10 seconds</div>
+ </div>
+ <label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Bandwidth Spike Detection</div>
+ <div class="setting-desc">Traffic exceeds baseline threshold</div>
+ </div>
+ <label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Suspicious IP Detection</div>
+ <div class="setting-desc">Blocklist + high-risk country check</div>
+ </div>
+ <label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Protocol Anomaly Detection</div>
+ <div class="setting-desc">Wrong protocol on known port</div>
+ </div>
+ <label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label>
+ </div>
+ </div>
+
+ <div class="settings-section">
+ <div class="settings-title">Dashboard</div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">Auto-Refresh</div>
+ <div class="setting-desc">Update data every 3 seconds automatically</div>
+ </div>
+ <label class="toggle"><input type="checkbox" checked id="toggle-refresh"><span class="toggle-track"></span></label>
+ </div>
+ <div class="setting-row">
+ <div>
+ <div class="setting-label">SoundAlerts</div>
+ <div class="setting-desc">Play a beep on CRITICAL alerts</div>
+ </div>
+ <label class="toggle"><input type="checkbox" id="toggle-sound"><span class="toggle-track"></span></label>
+ </div>
+ </div>
+ </div>
+
+ </main>
+</div>
+
+<!-- ══ ALERT DETAIL SLIDE PANEL ══ -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+ <button class="detail-close" onclick="closeDetail()"></button>
+ <div class="detail-title" id="dp-title">Alert Details</div>
+ <div class="detail-row"><div class="detail-key">Severity</div><div class="detail-val" id="dp-severity">—</div></div>
+ <div class="detail-row"><div class="detail-key">Timestamp</div><div class="detail-val" id="dp-time">—</div></div>
+ <div class="detail-row"><div class="detail-key">Rule</div><div class="detail-val" id="dp-rule">—</div></div>
+ <div class="detail-row"><div class="detail-key">Source IP</div><div class="detail-val" id="dp-ip">—</div></div>
+ <div class="detail-row"><div class="detail-key">Country</div><div class="detail-val" id="dp-country">—</div></div>
+ <div class="detail-row"><div class="detail-key">Detail</div><div class="detail-val" id="dp-detail">—</div></div>
+ <div class="detail-row">
+ <div class="detail-key">Why Triggered</div>
+ <div class="detail-val" id="dp-why" style="color:var(--text-secondary); font-size:12px; line-height:1.6;">—</div>
+ </div>
+ <div class="detail-actions">
+ <button class="btn btn-red" id="dp-block-btn" onclick="blockIP()"> Block IP</button>
+ <button class="btn btn-cyan" onclick="closeDetail()"> Mark Safe</button>
+ </div>
+</div>
+
+<script>
+const API = 'http://localhost:5001';
+let currentAlerts = [];
+let feedCount = 0;
+let currentDetailIP = '';
+let refreshEnabled = true;
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function navigateTo(page) {
+ document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+ document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+ document.getElementById('page-' + page).classList.add('active');
+ document.getElementById('nav-' + page).classList.add('active');
+
+ if (page === 'threat') loadThreatIntel();
+ if (page === 'analytics') loadAnalytics();
+}
+
+// ════════════════════════════════════════
+// CHARTS SETUP
+// ════════════════════════════════════════
+const chartDefaults = {
+ responsive: true,
+ animation: { duration: 300 },
+ plugins: { legend: { display: false } },
+ scales: {
+ x: { ticks: { color: '#2a4060', maxTicksLimit: 8 }, grid: { color: 'rgba(0,200,255,0.04)' } },
+ y: { ticks: { color: '#2a4060' }, grid: { color: 'rgba(0,200,255,0.04)' }, beginAtZero: true }
+ }
+};
+
+const overviewChart = new Chart(
+ document.getElementById('overviewChart').getContext('2d'), {
+ type: 'line',
+ data: { labels: [], datasets: [{ label: 'pkt/s', data: [],
+ borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.06)',
+ borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 }] },
+ options: { ...chartDefaults, animation: { duration: 200 } }
+});
+
+const liveChart = new Chart(
+ document.getElementById('liveChart').getContext('2d'), {
+ type: 'line',
+ data: { labels: [], datasets: [{ label: 'pkt/s', data: [],
+ borderColor: '#00ff9d', backgroundColor: 'rgba(0,255,157,0.05)',
+ borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 }] },
+ options: { ...chartDefaults, animation: { duration: 200 } }
+});
+
+let alertsTimeChart, detectionPieChart, severityPieChart;
+
+// ════════════════════════════════════════
+// UPDATE STATS
+// ════════════════════════════════════════
+async function updateStats() {
+ try {
+ const res = await fetch(API + '/api/stats');
+ const data = await res.json();
+
+ document.getElementById('ov-packets').textContent = data.total_packets.toLocaleString();
+ document.getElementById('ov-alerts').textContent = data.total_alerts.toLocaleString();
+ document.getElementById('ov-pps').textContent = data.packets_per_sec;
+ document.getElementById('ov-uptime').textContent = data.uptime;
+ document.getElementById('iface-badge').textContent = ' ' + (data.interface || 'ens33');
+ document.getElementById('settings-iface').textContent = data.interface || 'ens33';
+
+ // Threat level
+ const tlColors = { NONE:'#2a4060', LOW:'#00c8ff', MEDIUM:'#ffd600', HIGH:'#ff3860', CRITICAL:'#b44eff' };
+ const tlEl = document.getElementById('ov-threat');
+ tlEl.textContent = data.threat_level;
+ tlEl.style.color = tlColors[data.threat_level] || '#2a4060';
+
+ // Top IP
+ if (data.top_ip && data.top_ip.ip !== '—') {
+ document.getElementById('ov-topip').textContent = data.top_ip.ip;
+ document.getElementById('ov-topip-sub').textContent = `${data.top_ip.count} alerts · ${data.top_ip.code}`;
+ }
+
+ // Alert count badge in sidebar
+ const badge = document.getElementById('alert-count-badge');
+ if (data.total_alerts > 0) {
+ badge.textContent = data.total_alerts;
+ badge.style.display = 'inline';
+ }
+
+ // Status pill
+ const pill = document.getElementById('status-pill');
+ const txt = document.getElementById('status-text');
+ if (data.baseline_status === 'ready') {
+ pill.className = 'status-pill active';
+ txt.textContent = 'ACTIVE';
+ document.getElementById('baseline-notice').style.display = 'none';
+ } else {
+ pill.className = 'status-pill learning';
+ txt.textContent = 'LEARNING';
+ document.getElementById('baseline-msg-text').textContent = data.baseline_message;
+ }
+ } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// UPDATE CHARTS
+// ════════════════════════════════════════
+async function updateCharts() {
+ try {
+ const res = await fetch(API + '/api/traffic');
+ const data = await res.json();
+ const labels = data.timeline.map(d => d.time);
+ const values = data.timeline.map(d => d.value);
+
+ overviewChart.data.labels = labels;
+ overviewChart.data.datasets[0].data = values;
+ overviewChart.update();
+
+ liveChart.data.labels = labels;
+ liveChart.data.datasets[0].data = values;
+ liveChart.update();
+
+ // Add to live feed
+ if (data.timeline.length > 0) {
+ const last = data.timeline[data.timeline.length - 1];
+ addFeedItem(`${last.time} Traffic: ${last.value} pkt/s`, 'normal');
+ }
+ } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// UPDATE ALERTS
+// ════════════════════════════════════════
+async function updateAlerts() {
+ try {
+ const res = await fetch(API + '/api/alerts?limit=100');
+ const data = await res.json();
+ currentAlerts = data.alerts;
+ renderAlertsTable(currentAlerts, 'alerts-tbody');
+ renderAlertsTable(currentAlerts.slice(0, 5), 'overview-alerts-tbody', true);
+
+ // Feed critical alerts
+ data.alerts.slice(0, 3).forEach(a => {
+ if (a.severity === 'CRITICAL' || a.severity === 'HIGH') {
+ addFeedItem(`[${a.severity}] ${a.rule} — ${a.src_ip} (${a.country})`, 'alert');
+ }
+ });
+
+ // Sound on critical
+ if (document.getElementById('toggle-sound').checked) {
+ const hasCritical = data.alerts.some(a => a.severity === 'CRITICAL');
+ if (hasCritical) {
+ try {
+ const ctx = new AudioContext();
+ const osc = ctx.createOscillator();
+ osc.connect(ctx.destination);
+ osc.frequency.value = 880;
+ osc.start(); osc.stop(ctx.currentTime + 0.1);
+ } catch(e) {}
+ }
+ }
+ } catch(e) {}
+}
+
+function renderAlertsTable(alerts, tbodyId, compact = false) {
+ const tbody = document.getElementById(tbodyId);
+ if (!alerts || alerts.length === 0) {
+ tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ei"></div><p>No alerts yet</p></div></td></tr>`;
+ return;
+ }
+ tbody.innerHTML = alerts.map((a, i) => `
+ <tr onclick="openDetail(${i + (compact ? 0 : 0)}, ${JSON.stringify(a).replace(/"/g, '&quot;')})">
+ <td><span class="badge badge-${a.severity}">${a.severity}</span></td>
+ <td style="color:var(--text-dim); font-size:11px;">${a.timestamp}</td>
+ <td style="color:var(--cyan);">${a.rule}</td>
+ <td>${a.src_ip}</td>
+ <td>${a.country} <span style="color:var(--text-dim);">(${a.country_code})</span></td>
+ ${!compact ? `<td style="color:var(--text-dim); font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.detail}</td>` : ''}
+ </tr>
+ `).join('');
+}
+
+// ════════════════════════════════════════
+// FILTER ALERTS
+// ════════════════════════════════════════
+function filterAlerts() {
+ const search = document.getElementById('alert-search').value.toLowerCase();
+ const severity = document.getElementById('severity-filter').value;
+ const filtered = currentAlerts.filter(a => {
+ const matchSev = severity === 'ALL' || a.severity === severity;
+ const matchStr = !search || a.src_ip.includes(search) ||
+ a.rule.toLowerCase().includes(search) ||
+ a.country.toLowerCase().includes(search);
+ return matchSev && matchStr;
+ });
+ renderAlertsTable(filtered, 'alerts-tbody');
+}
+
+// ════════════════════════════════════════
+// ALERT DETAIL PANEL
+// ════════════════════════════════════════
+function openDetail(idx, alertObj) {
+ const a = typeof alertObj === 'string' ? JSON.parse(alertObj) : alertObj;
+ currentDetailIP = a.src_ip;
+
+ document.getElementById('dp-title').textContent = ' ' + a.rule;
+ document.getElementById('dp-severity').innerHTML = `<span class="badge badge-${a.severity}">${a.severity}</span>`;
+ document.getElementById('dp-time').textContent = a.timestamp;
+ document.getElementById('dp-rule').textContent = a.rule;
+ document.getElementById('dp-ip').textContent = a.src_ip;
+ document.getElementById('dp-country').textContent = `${a.country} (${a.country_code})`;
+ document.getElementById('dp-detail').textContent = a.detail;
+ document.getElementById('dp-why').textContent = getRuleExplanation(a.rule, a.detail);
+ document.getElementById('dp-block-btn').style.display = a.src_ip !== 'N/A' ? 'inline-flex' : 'none';
+
+ document.getElementById('detail-overlay').classList.add('open');
+ document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+ document.getElementById('detail-overlay').classList.remove('open');
+ document.getElementById('detail-panel').classList.remove('open');
+}
+
+function getRuleExplanation(rule, detail) {
+ if (rule.includes('Port Scan'))
+ return `A single IP address contacted an unusually high number of unique ports in a short window. This is the classic signature of port scanning tools like nmap — probing for open services.`;
+ if (rule.includes('Bandwidth'))
+ return `Network traffic spiked significantly above the learned normal baseline for this network. This could indicate a DDoS attack, data exfiltration, or a flood attack.`;
+ if (rule.includes('Blocklist'))
+ return `The source IP was found in the known bad IP blocklist. This IP has been previously identified as malicious or associated with threat actors.`;
+ if (rule.includes('High Risk'))
+ return `The source IP originates from a country flagged as high-risk based on threat intelligence data. This does not confirm malicious intent but warrants investigation.`;
+ if (rule.includes('Protocol'))
+ return `A network port was used with an unexpected protocol. Attackers often tunnel malicious traffic through standard ports (like port 80) to bypass firewalls. This technique is used in C2 communication.`;
+ return detail;
+}
+
+async function blockIP() {
+ if (!currentDetailIP || currentDetailIP === 'N/A') return;
+ try {
+ const res = await fetch(API + '/api/blocklist/add', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ ip: currentDetailIP })
+ });
+ const data = await res.json();
+ if (data.success) {
+ document.getElementById('dp-block-btn').textContent = ' Blocked';
+ document.getElementById('dp-block-btn').style.background = 'var(--green-dim)';
+ document.getElementById('dp-block-btn').style.color = 'var(--green)';
+ }
+ } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// THREAT INTEL
+// ════════════════════════════════════════
+async function loadThreatIntel() {
+ try {
+ const res = await fetch(API + '/api/threat-intel');
+ const data = await res.json();
+ const maxCount = data.top_countries[0]?.count || 1;
+
+ // Countries
+ const countriesEl = document.getElementById('top-countries-list');
+ if (data.top_countries.length === 0) {
+ countriesEl.innerHTML = `<div class="empty-state" style="padding:30px;"><p>No data yet</p></div>`;
+ } else {
+ countriesEl.innerHTML = data.top_countries.map(c => `
+ <div class="bar-row">
+ <div class="bar-label">
+ <span>${c.country} (${c.code})</span>
+ <span style="color:var(--red);">${c.count}</span>
+ </div>
+ <div class="bar-track">
+ <div class="bar-fill" style="width:${Math.round(c.count/maxCount*100)}%"></div>
+ </div>
+ </div>
+ `).join('');
+ }
+
+ // IPs
+ const ipsEl = document.getElementById('top-ips-list');
+ if (data.top_ips.length === 0) {
+ ipsEl.innerHTML = `<div class="empty-state" style="padding:30px;"><p>No data yet</p></div>`;
+ } else {
+ const maxIp = data.top_ips[0]?.count || 1;
+ ipsEl.innerHTML = data.top_ips.map(ip => `
+ <div class="bar-row">
+ <div class="bar-label">
+ <span style="font-family:var(--font-mono);">${ip.ip}</span>
+ <span style="color:var(--red);">${ip.count} · ${ip.code}</span>
+ </div>
+ <div class="bar-track">
+ <div class="bar-fill" style="width:${Math.round(ip.count/maxIp*100)}%; background:linear-gradient(90deg,var(--red),var(--purple));"></div>
+ </div>
+ </div>
+ `).join('');
+ }
+ } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// ANALYTICS
+// ════════════════════════════════════════
+async function loadAnalytics() {
+ try {
+ const res = await fetch(API + '/api/analytics');
+ const data = await res.json();
+
+ //Alerts over time
+ if (alertsTimeChart) alertsTimeChart.destroy();
+ alertsTimeChart = new Chart(
+ document.getElementById('alertsTimeChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: data.alerts_over_time.map(d => d.hour),
+ datasets: [{
+ label: 'Alerts',
+ data: data.alerts_over_time.map(d => d.count),
+ backgroundColor: 'rgba(0,200,255,0.3)',
+ borderColor: '#00c8ff',
+ borderWidth: 1
+ }]
+ },
+ options: {
+ ...chartDefaults,
+ plugins: { legend: { display: false } }
+ }
+ });
+
+ // Detection types pie
+ const pieColors = ['#00c8ff','#ff3860','#ffd600','#b44eff','#00ff9d'];
+ if (detectionPieChart) detectionPieChart.destroy();
+ detectionPieChart = new Chart(
+ document.getElementById('detectionPieChart').getContext('2d'), {
+ type: 'doughnut',
+ data: {
+ labels: data.detection_types.map(d => d.rule.replace(' Detected','').replace(' Detection','')),
+ datasets: [{
+ data: data.detection_types.map(d => d.count),
+ backgroundColor: pieColors,
+ borderColor: '#070d1a',
+ borderWidth: 2
+ }]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: {
+ display: true,
+ position: 'bottom',
+ labels: { color: '#5a7fa0', font: { size: 11 }, padding: 12 }
+ }
+ }
+ }
+ });
+
+ // Severity pie
+ const sevColors = { LOW:'#00c8ff', MEDIUM:'#ffd600', HIGH:'#ff3860', CRITICAL:'#b44eff' };
+ if (severityPieChart) severityPieChart.destroy();
+ severityPieChart = new Chart(
+ document.getElementById('severityPieChart').getContext('2d'), {
+ type: 'doughnut',
+ data: {
+ labels: data.severity_breakdown.map(d => d.severity),
+ datasets: [{
+ data: data.severity_breakdown.map(d => d.count),
+ backgroundColor: data.severity_breakdown.map(d => sevColors[d.severity] || '#2a4060'),
+ borderColor: '#070d1a',
+ borderWidth: 2
+ }]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: {
+ display: true,
+ position: 'bottom',
+ labels: { color: '#5a7fa0', font: { size: 11 }, padding: 12 }
+ }
+ }
+ }
+ });
+ } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// LIVE FEED
+// ════════════════════════════════════════
+function addFeedItem(text, type) {
+ const feed = document.getElementById('live-feed');
+ const el = document.createElement('div');
+ el.className = `feed-item ${type}`;
+ const now = new Date().toTimeString().slice(0,8);
+ el.innerHTML = `<span class="feed-ts">${now}</span> ${text}`;
+ feed.insertBefore(el, feed.firstChild);
+ // Keep max 50 items
+ while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+ feedCount++;
+ document.getElementById('feed-count').textContent = feedCount + ' events';
+}
+
+// ════════════════════════════════════════
+// AUTO REFRESH
+// ════════════════════════════════════════
+document.getElementById('toggle-refresh').addEventListener('change', function() {
+ refreshEnabled = this.checked;
+});
+
+async function tick() {
+ if (!refreshEnabled) return;
+ await updateStats();
+ await updateCharts();
+ await updateAlerts();
+}
+
+// Initial load
+tick();
+
+// Refresh every 3 seconds
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

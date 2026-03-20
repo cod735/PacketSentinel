@@ -1,0 +1,7 @@
+# PacketSentinel Blocklist
+# Add one IP per line
+185.220.101.1
+185.220.101.2
+45.33.32.156
+# Whitelisted — Google DNS (not a threat)
+# 8.8.8.8
