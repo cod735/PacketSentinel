@@ -1,0 +1,8 @@
+venv/
+data/alerts.db
+data/GeoLite2-Country.mmdb
+packetsentinel.log
+__pycache__/
+*.pyc
+*.pyo
+.env

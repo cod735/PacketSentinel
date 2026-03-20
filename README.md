@@ -1,19 +1,3 @@
-<div align="center">
-```
-██████╗  █████╗  ██████╗██╗  ██╗███████╗████████╗
-██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝
-██████╔╝███████║██║     █████╔╝ █████╗     ██║
-██╔═══╝ ██╔══██║██║     ██╔═██╗ ██╔══╝     ██║
-██║     ██║  ██║╚██████╗██║  ██╗███████╗   ██║
-╚═╝     ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝
-███████╗███████╗███╗   ██╗████████╗██╗███╗   ██╗███████╗██╗
-██╔════╝██╔════╝████╗  ██║╚══██╔══╝██║████╗  ██║██╔════╝██║
-███████╗█████╗  ██╔██╗ ██║   ██║   ██║██╔██╗ ██║█████╗  ██║
-╚════██║██╔══╝  ██║╚██╗██║   ██║   ██║██║╚██╗██║██╔══╝  ██║
-███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
-╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
-```
-
 # PacketSentinel
 
 **Real-time Network Traffic Monitor & Anomaly Detector**
@@ -24,64 +8,50 @@
 ![Platform](https://img.shields.io/badge/Platform-Linux-yellow?style=flat-square&logo=linux)
 ![License](https://img.shields.io/badge/License-MIT-red?style=flat-square)
 
-*A professional-grade network monitoring tool built in Python — detects port scans, bandwidth spikes, suspicious IPs, and protocol anomalies in real time.*
+---
 
-</div>
+## Dashboard
+
+![PacketSentinel Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
-## 🎯 Overview
+## Overview
 
-**PacketSentinel** is a standalone network traffic monitor and anomaly detection system built for Linux. It captures live packets from your network interface, learns your normal traffic baseline, and alerts you when something suspicious is detected.
+PacketSentinel is a standalone network traffic monitor and anomaly detection system built for Linux. It captures live packets from your network interface, learns your normal traffic baseline, and alerts you when something suspicious is detected.
 
 Built as part of a cybersecurity portfolio — designed to demonstrate real-world security engineering skills including packet analysis, threat detection, REST API design, and SOC dashboard development.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🧠 **Smart Baseline Learning** — Learns your normal traffic before alerting (no false positives from day one)
-- 🔍 **4 Detection Rules** — Port scan, bandwidth spike, suspicious IP, protocol anomaly
-- 🌍 **GeoIP Enrichment** — Every alert shows the source country using MaxMind GeoLite2
-- 🚨 **Alert Severity** — LOW / MEDIUM / HIGH / CRITICAL with color coding
-- 🌐 **SOC Dashboard** — Professional dark-themed web UI at `localhost:5001`
-- 📊 **Live Charts** — Real-time traffic visualization with Chart.js
-- 📋 **Alert Management** — Search, filter, click for details, block IPs
-- 📁 **Export** — Download alerts as CSV or JSON
-- ⚙️ **Auto-installer** — One command setup with systemd service
-- 🔌 **Portable** — Auto-detects network interface on any Linux machine
-
----
-
-## 🖥️ Dashboard Preview
-```
-┌─────────────────────────────────────────────────────┐
-│ 🛡 PACKETSENTINEL          📡 ens33    ✅ ACTIVE     │
-├──────────────┬──────────────────────────────────────┤
-│ 🏠 Overview  │  Packets    Alerts    PPS    Uptime   │
-│ 📡 Traffic   │  22,731     12        55     01:26    │
-│ 🚨 Alerts    │                                      │
-│ 🌍 Threat    │  [Live Traffic Chart]                │
-│ 📊 Analytics │                                      │
-│ 📁 Reports   │  [Alerts Table with severity badges] │
-│ ⚙ Settings   │                                      │
-└──────────────┴──────────────────────────────────────┘
-```
+- Smart Baseline Learning — Learns your normal traffic before alerting (no false positives from day one)
+- 4 Detection Rules — Port scan, bandwidth spike, suspicious IP, protocol anomaly
+- GeoIP Enrichment — Every alert shows the source country using MaxMind GeoLite2
+- Alert Severity — LOW / MEDIUM / HIGH / CRITICAL with color coding
+- SOC Dashboard — Professional dark-themed web UI at localhost:5001
+- Live Charts — Real-time traffic visualization with Chart.js
+- Alert Management — Search, filter, click for details, block IPs
+- Export — Download alerts as CSV or JSON
+- Auto-installer — One command setup with systemd service
+- Portable — Auto-detects network interface on any Linux machine
 
 ---
 
-## 🔍 Detection Rules
+## Detection Rules
 
-| # | Rule | Trigger | Severity |
-|---|---|---|---|
-| 1 | **Port Scan Detector** | 15+ unique ports from same IP in 10 seconds | MEDIUM / HIGH |
-| 2 | **Bandwidth Spike** | Traffic exceeds 6× learned baseline | HIGH |
-| 3 | **Suspicious IP** | Matches blocklist or high-risk country (GeoIP) | CRITICAL / HIGH |
-| 4 | **Protocol Anomaly** | Wrong protocol on known port (e.g. SSH on port 80) | MEDIUM |
+| Rule | Trigger | Severity |
+|---|---|---|
+| Port Scan Detector | 15+ unique ports from same IP in 10 seconds | MEDIUM / HIGH |
+| Bandwidth Spike | Traffic exceeds 6x learned baseline | HIGH |
+| Suspicious IP | Matches blocklist or high-risk country (GeoIP) | CRITICAL / HIGH |
+| Protocol Anomaly | Wrong protocol on known port (e.g. SSH on port 80) | MEDIUM |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
+
 ```
 PacketSentinel/
 ├── core/
@@ -105,16 +75,17 @@ PacketSentinel/
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Option 1 — Auto Install (Recommended)
+
 ```bash
 git clone https://github.com/cod735/PacketSentinel.git
 cd PacketSentinel
 sudo bash install.sh
 ```
 
-Then open: **http://localhost:5001**
+Then open: http://localhost:5001
 
 ---
 
@@ -155,7 +126,7 @@ http://localhost:5001
 
 ---
 
-## 🧪 Testing Detection Rules
+## Testing Detection Rules
 
 ### Test 1 — Port Scan
 ```bash
@@ -186,7 +157,7 @@ send(IP(src='1.2.3.4', dst='YOUR_IP')/TCP(dport=80)/Raw(load='SSH-2.0-OpenSSH'),
 
 ---
 
-## 🌐 API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -202,9 +173,10 @@ send(IP(src='1.2.3.4', dst='YOUR_IP')/TCP(dport=80)/Raw(load='SSH-2.0-OpenSSH'),
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 All settings are in `config.py`:
+
 ```python
 BASELINE_DURATION          = 180    # Learning window (seconds)
 BANDWIDTH_SPIKE_MULTIPLIER = 6.0    # Spike sensitivity
@@ -215,7 +187,8 @@ FLASK_PORT                 = 5001   # Dashboard port
 
 ---
 
-## 🛠️ Service Management
+## Service Management
+
 ```bash
 # Status
 systemctl status packetsentinel
@@ -235,7 +208,7 @@ sudo bash uninstall.sh
 
 ---
 
-## 🧰 Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |---|---|
@@ -249,10 +222,10 @@ sudo bash uninstall.sh
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] ShieldLog SIEM integration
-- [ ] Email / Slack alert notifications  
+- [ ] Email / Slack alert notifications
 - [ ] PDF report generation
 - [ ] Docker container support
 - [ ] Custom detection rules via config
@@ -260,30 +233,19 @@ sudo bash uninstall.sh
 
 ---
 
-## 👨‍💻 Author
+## Author
 
 **Abbas Khan**
 - GitHub: [@cod735](https://github.com/cod735)
-- Project: Part of cybersecurity portfolio series
 
 ---
 
-## 📜 License
+## License
 
 MIT License — free to use, modify and distribute.
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
-PacketSentinel is built for **educational and authorized network monitoring purposes only**. Only use it on networks you own or have explicit permission to monitor. Unauthorized network monitoring may be illegal in your jurisdiction.
-
----
-
-<div align="center">
-
-*If this project helped you, please ⭐ star the repository!*
-
-**PacketSentinel** — Built with 🛡️ by Abbas Khan
-
-</div>
+PacketSentinel is built for educational and authorized network monitoring purposes only. Only use it on networks you own or have explicit permission to monitor. Unauthorized network monitoring may be illegal in your jurisdiction.
